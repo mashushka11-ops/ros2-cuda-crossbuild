@@ -1,0 +1,41 @@
+# Базовый образ для Jetson Orin: Ubuntu 22.04 + JetPack 6.x / CUDA
+# Официальный стек NVIDIA для встраиваемых платформ L4T
+FROM nvcr.io/nvidia/l4t-jetpack:r36.2.0
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV ROS_DISTRO=humble
+
+# 1. Системные зависимости и локаль
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    locales \
+    curl \
+    gnupg2 \
+    lsb-release \
+    build-essential \
+    cmake \
+    git \
+    python3-pip \
+    && locale-gen en_US en_US.UTF-8 \
+    && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV LANG=en_US.UTF-8
+
+# 2. Подключение репозитория ROS2 Humble
+RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null
+
+# 3. Установка ядра ROS2 Humble и инструментов сборки
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ros-humble-ros-base \
+    python3-colcon-common-extensions \
+    python3-rosdep \
+    && rosdep init || true \
+    && rosdep update \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc
+
+CMD ["/bin/bash"]
