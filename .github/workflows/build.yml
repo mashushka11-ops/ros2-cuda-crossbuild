@@ -1,0 +1,103 @@
+name: Cross-Platform ROS2 CUDA Build
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*" ]
+  workflow_dispatch:
+    inputs:
+      repo_url:
+        description: "Git URL пакета для сборки"
+        required: false
+        default: "https://github.com/hku-mars/FAST_LIO.git"
+      branch:
+        description: "Ветка пакета"
+        required: false
+        default: "main"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Платформа 1: Обычный x86_64 с GPU
+          - platform_name: "x86"
+            arch: "linux/amd64"
+            dockerfile: "docker/Dockerfile.base.x86"
+            cuda_arch: "86"
+
+          # Платформа 2: Jetson AGX Orin (JetPack 6.2.2 / ARM64)
+          - platform_name: "jetson-agx-orin"
+            arch: "linux/arm64"
+            dockerfile: "docker/Dockerfile.base.jetson"
+            cuda_arch: "87"
+
+          # Платформа 3: Jetson Orin Nano (JetPack 7 / ARM64)
+          - platform_name: "jetson-orin-nano"
+            arch: "linux/arm64"
+            dockerfile: "docker/Dockerfile.base.jetson"
+            cuda_arch: "87"
+
+    steps:
+      - name: Чек-аут репозитория
+        uses: actions/checkout@v4
+
+      # Включаем QEMU для кросс-платформенной сборки под ARM64
+      - name: Настройка QEMU (эмуляция ARM64)
+        uses: docker/setup-qemu-action@v3
+
+      # Настраиваем инструмент сборки Buildx
+      - name: Настройка Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Логинимся в GitHub Packages (ghcr.io)
+      - name: Авторизация в GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 1. Сборка и публикация базового образа
+      - name: Сборка базового образа (${{ matrix.platform_name }})
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ matrix.arch }}
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/base-${{ matrix.platform_name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 2. Сборка финального образа с ROS2-пакетом (FAST-LIO2)
+      - name: Сборка пакета FAST-LIO (${{ matrix.platform_name }})
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.package
+          platforms: ${{ matrix.arch }}
+          push: true
+          build-args: |
+            BASE_IMAGE=ghcr.io/${{ github.repository }}/base-${{ matrix.platform_name }}:latest
+            REPO_URL=${{ github.event.inputs.repo_url || 'https://github.com/hku-mars/FAST_LIO.git' }}
+            REPO_BRANCH=${{ github.event.inputs.branch || 'main' }}
+            CUDA_ARCH=${{ matrix.cuda_arch }}
+          tags: |
+            ghcr.io/${{ github.repository }}/fastlio-${{ matrix.platform_name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 3. Проверка компилятора CUDA (Smoke-тест)
+      - name: Проверка наличия CUDA Toolkit в собранном образе
+        run: |
+          docker run --rm --platform ${{ matrix.arch }} \
+            ghcr.io/${{ github.repository }}/base-${{ matrix.platform_name }}:latest \
+            nvcc --version
