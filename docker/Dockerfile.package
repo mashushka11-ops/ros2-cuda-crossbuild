@@ -9,7 +9,7 @@ ARG CUDA_ARCH="86"
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TORCH_CUDA_ARCH_LIST="${CUDA_ARCH}"
 
-# 1. Системные библиотеки PCL, Eigen и ROS2-сообщения
+# 1. Библиотеки PCL, Eigen
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpcl-dev \
     libeigen3-dev \
@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-humble-perception-pcl \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Установка Livox-SDK2 (ограничиваем потоки до 2, чтобы QEMU не падал по памяти)
+# 2. Сборка Livox-SDK2 в систему
 WORKDIR /workspace
 RUN git clone --depth 1 https://github.com/Livox-SDK/Livox-SDK2.git && \
     cd Livox-SDK2 && \
@@ -27,26 +27,23 @@ RUN git clone --depth 1 https://github.com/Livox-SDK/Livox-SDK2.git && \
     ldconfig && \
     cd /workspace && rm -rf Livox-SDK2
 
-# 3. Подготовка воркспейса ROS2
+# 3. Воркспейс ROS2
 WORKDIR /workspace/ros2_ws/src
-
-# 4. Скачиваем livox_ros_driver2 и FAST_LIO_ROS2
 RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
     git clone --branch ${REPO_BRANCH} --depth 1 ${REPO_URL} || git clone --depth 1 ${REPO_URL}
 
 WORKDIR /workspace/ros2_ws
 
-# 5. Сборка пакетов с ограничением параллелизма (--parallel-workers 1)
-# Это гарантирует, что эмулятору ARM64 хватит оперативной памяти раннера
+# 4. Этап 1: сборка сообщений драйвера Livox
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
-    colcon build \
-    --parallel-workers 1 \
-    --symlink-install \
-    --cmake-args \
-    -DROS_EDITION=ROS2 \
-    -DCMAKE_BUILD_TYPE=Release"
+    colcon build --packages-select livox_ros_driver2 --cmake-args -DROS_EDITION=ROS2 -DCMAKE_BUILD_TYPE=Release --parallel-workers 1"
 
-# 6. Автоподключение пакетов в окружение
+# 5. Этап 2: подтягивание скомпилированных сообщений и сборка FAST-LIO
+RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
+    source /workspace/ros2_ws/install/setup.bash && \
+    colcon build --packages-select fast_lio --cmake-args -DCMAKE_BUILD_TYPE=Release --parallel-workers 1"
+
+# 6. Автосорсинг
 RUN echo "source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc
 
 CMD ["/bin/bash"]
