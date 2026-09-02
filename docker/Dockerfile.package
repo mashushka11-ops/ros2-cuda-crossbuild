@@ -9,13 +9,14 @@ ARG CUDA_ARCH="86"
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TORCH_CUDA_ARCH_LIST="${CUDA_ARCH}"
 
-# 1. Библиотеки PCL, Eigen
+# 1. Библиотеки PCL, Eigen и ROS2 пакеты
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpcl-dev \
     libeigen3-dev \
     ros-humble-pcl-conversions \
     ros-humble-pcl-msgs \
     ros-humble-perception-pcl \
+    ros-humble-diagnostic-updater \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Сборка Livox-SDK2 в систему
@@ -32,18 +33,18 @@ WORKDIR /workspace/ros2_ws/src
 RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
     git clone --branch ${REPO_BRANCH} --depth 1 ${REPO_URL} || git clone --depth 1 ${REPO_URL}
 
+# 4. Переключаем livox_ros_driver2 на конфигурацию ROS2
+RUN cp /workspace/ros2_ws/src/livox_ros_driver2/package_ROS2.xml /workspace/ros2_ws/src/livox_ros_driver2/package.xml
+
 WORKDIR /workspace/ros2_ws
 
-# 4. Этап 1: сборка сообщений драйвера Livox
+# 5. Сборка пакетов
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
-    colcon build --packages-select livox_ros_driver2 --cmake-args -DROS_EDITION=ROS2 -DCMAKE_BUILD_TYPE=Release --parallel-workers 1"
-
-# 5. Этап 2: подтягивание скомпилированных сообщений и сборка FAST-LIO
-RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
+    colcon build --packages-select livox_ros_driver2 --cmake-args -DROS_EDITION=ROS2 -DCMAKE_BUILD_TYPE=Release --parallel-workers 1 && \
     source /workspace/ros2_ws/install/setup.bash && \
     colcon build --packages-select fast_lio --cmake-args -DCMAKE_BUILD_TYPE=Release --parallel-workers 1"
 
 # 6. Автосорсинг
 RUN echo "source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc
 
-CMD ["/bin/bash"] 
+CMD ["/bin/bash"]
