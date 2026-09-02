@@ -1,52 +1,40 @@
-# Базовый образ с ROS2 и CUDA
-ARG BASE_IMAGE=ros2-cuda-base:x86
-FROM ${BASE_IMAGE}
-
-ARG REPO_URL="https://github.com/flynneva/FAST_LIO_ROS2.git"
-ARG REPO_BRANCH="main"
-ARG CUDA_ARCH="86"
+# Базовый образ: Ubuntu 22.04 с установленным CUDA 12.2 Toolkit
+FROM nvidia/cuda:12.2.2-devel-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV TORCH_CUDA_ARCH_LIST="${CUDA_ARCH}"
+ENV ROS_DISTRO=humble
 
-# 1. Системные библиотеки PCL, Eigen и ROS2-сообщения
+# 1. Системные утилиты и локаль UTF-8
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpcl-dev \
-    libeigen3-dev \
-    ros-humble-pcl-conversions \
-    ros-humble-pcl-msgs \
-    ros-humble-perception-pcl \
+    locales \
+    curl \
+    gnupg2 \
+    lsb-release \
+    build-essential \
+    cmake \
+    git \
+    python3-pip \
+    && locale-gen en_US en_US.UTF-8 \
+    && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Установка Livox-SDK2 (ограничиваем потоки до 2, чтобы QEMU не падал по памяти)
+ENV LANG=en_US.UTF-8
+
+# 2. Репозиторий ROS2 Humble
+RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null
+
+# 3. Базовый ROS2 и инструменты colcon/rosdep
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ros-humble-ros-base \
+    python3-colcon-common-extensions \
+    python3-rosdep \
+    && rosdep init \
+    && rosdep update \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /workspace
-RUN git clone --depth 1 https://github.com/Livox-SDK/Livox-SDK2.git && \
-    cd Livox-SDK2 && \
-    mkdir build && cd build && \
-    cmake .. && make -j2 && make install && \
-    ldconfig && \
-    cd /workspace && rm -rf Livox-SDK2
 
-# 3. Подготовка воркспейса ROS2
-WORKDIR /workspace/ros2_ws/src
-
-# 4. Скачиваем livox_ros_driver2 и FAST_LIO_ROS2
-RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
-    git clone --branch ${REPO_BRANCH} --depth 1 ${REPO_URL} || git clone --depth 1 ${REPO_URL}
-
-WORKDIR /workspace/ros2_ws
-
-# 5. Сборка пакетов с ограничением параллелизма (--parallel-workers 1)
-# Это гарантирует, что эмулятору ARM64 хватит оперативной памяти раннера
-RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
-    colcon build \
-    --parallel-workers 1 \
-    --symlink-install \
-    --cmake-args \
-    -DROS_EDITION=ROS2 \
-    -DCMAKE_BUILD_TYPE=Release"
-
-# 6. Автоподключение пакетов в окружение
-RUN echo "source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc
+RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc
 
 CMD ["/bin/bash"]
