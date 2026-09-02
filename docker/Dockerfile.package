@@ -9,7 +9,7 @@ ARG CUDA_ARCH="86"
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TORCH_CUDA_ARCH_LIST="${CUDA_ARCH}"
 
-# 1. Системные зависимости, PCL, Eigen и средства сборки
+# 1. Системные зависимости, PCL, Eigen
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpcl-dev \
     libeigen3-dev \
@@ -18,29 +18,31 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-humble-perception-pcl \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Создаем рабочее пространство ROS2
+# 2. Установка системного Livox-SDK2 (требуется для livox_ros_driver2)
+WORKDIR /workspace
+RUN git clone --depth 1 https://github.com/Livox-SDK/Livox-SDK2.git && \
+    cd Livox-SDK2 && \
+    mkdir build && cd build && \
+    cmake .. && make -j$(nproc) && make install && \
+    ldconfig && \
+    cd /workspace && rm -rf Livox-SDK2
+
+# 3. Подготовка рабочего пространства ROS2
 WORKDIR /workspace/ros2_ws/src
 
-# 3. Клонируем драйвер Livox (критически необходимая зависимость FAST-LIO)
-RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git
-
-# 4. Клонируем целевой пакет FAST-LIO2
-RUN git clone --branch ${REPO_BRANCH} --depth 1 ${REPO_URL} || \
-    git clone --depth 1 ${REPO_URL}
+# 4. Клонируем ROS2 драйвер Livox и FAST-LIO2
+RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
+    git clone --branch ${REPO_BRANCH} --depth 1 ${REPO_URL} || git clone --depth 1 ${REPO_URL}
 
 WORKDIR /workspace/ros2_ws
 
-# 5. Устанавливаем недостающие зависимости
+# 5. Сборка ROS2 пакетов по порядку (сначала драйвер, затем FAST-LIO)
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
-    rosdep install --from-paths src --ignore-src -r -y || true"
+    colcon build --packages-select livox_ros_driver2 --cmake-args -DROS_EDITION=ROS2 -DCMAKE_BUILD_TYPE=Release && \
+    source install/setup.bash && \
+    colcon build --packages-select fast_lio --cmake-args -DCMAKE_BUILD_TYPE=Release"
 
-# 6. Собираем всё рабочее пространство через colcon
-RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
-    colcon build --symlink-install --cmake-args \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DROS_EDITION=ROS2"
-
-# 7. Автоматический сорсинг собранного пакета
+# 6. Автоподключение пакетов в окружение
 RUN echo "source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc
 
 CMD ["/bin/bash"]
