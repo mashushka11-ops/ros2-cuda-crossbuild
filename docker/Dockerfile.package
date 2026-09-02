@@ -46,4 +46,4 @@ RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
 # 6. Автосорсинг
 RUN echo "source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc
 
-CMD ["/bin/bash"]
+CMD ["/bin/bash"] 
