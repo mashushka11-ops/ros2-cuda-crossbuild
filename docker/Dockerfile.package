@@ -1,8 +1,7 @@
-# Аргумент базового образа (x86 или jetson)
+# Базовый образ с ROS2 и CUDA
 ARG BASE_IMAGE=ros2-cuda-base:x86
 FROM ${BASE_IMAGE}
 
-# Ветка и репозиторий порта под ROS2 Humble
 ARG REPO_URL="https://github.com/flynneva/FAST_LIO_ROS2.git"
 ARG REPO_BRANCH="main"
 ARG CUDA_ARCH="86"
@@ -10,32 +9,38 @@ ARG CUDA_ARCH="86"
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TORCH_CUDA_ARCH_LIST="${CUDA_ARCH}"
 
-# Системные библиотеки PCL, Eigen и ROS2-сообщения
+# 1. Системные зависимости, PCL, Eigen и средства сборки
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpcl-dev \
     libeigen3-dev \
     ros-humble-pcl-conversions \
     ros-humble-pcl-msgs \
+    ros-humble-perception-pcl \
     && rm -rf /var/lib/apt/lists/*
 
+# 2. Создаем рабочее пространство ROS2
 WORKDIR /workspace/ros2_ws/src
 
-# Клонируем исходный код ROS2-пакета
+# 3. Клонируем драйвер Livox (критически необходимая зависимость FAST-LIO)
+RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git
+
+# 4. Клонируем целевой пакет FAST-LIO2
 RUN git clone --branch ${REPO_BRANCH} --depth 1 ${REPO_URL} || \
     git clone --depth 1 ${REPO_URL}
 
 WORKDIR /workspace/ros2_ws
 
-# Установка зависимостей пакета
+# 5. Устанавливаем недостающие зависимости
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
     rosdep install --from-paths src --ignore-src -r -y || true"
 
-# Сборка пакета через colcon
+# 6. Собираем всё рабочее пространство через colcon
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
     colcon build --symlink-install --cmake-args \
-    -DCMAKE_BUILD_TYPE=Release"
+    -DCMAKE_BUILD_TYPE=Release \
+    -DROS_EDITION=ROS2"
 
-# Автоподключение пакета в окружение
+# 7. Автоматический сорсинг собранного пакета
 RUN echo "source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc
 
 CMD ["/bin/bash"]
