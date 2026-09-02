@@ -18,12 +18,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-humble-perception-pcl \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Установка Livox-SDK2
+# 2. Установка Livox-SDK2 (ограничиваем потоки до 2, чтобы QEMU не падал по памяти)
 WORKDIR /workspace
 RUN git clone --depth 1 https://github.com/Livox-SDK/Livox-SDK2.git && \
     cd Livox-SDK2 && \
     mkdir build && cd build && \
-    cmake .. && make -j$(nproc) && make install && \
+    cmake .. && make -j2 && make install && \
     ldconfig && \
     cd /workspace && rm -rf Livox-SDK2
 
@@ -34,18 +34,19 @@ WORKDIR /workspace/ros2_ws/src
 RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
     git clone --branch ${REPO_BRANCH} --depth 1 ${REPO_URL} || git clone --depth 1 ${REPO_URL}
 
-# 5. Готовим конфигурацию livox_ros_driver2 под ROS2
-WORKDIR /workspace/ros2_ws/src/livox_ros_driver2
-RUN ./build.sh ros2 || true
-
-# 6. Собираем всё рабочее пространство разом
 WORKDIR /workspace/ros2_ws
+
+# 5. Сборка пакетов с ограничением параллелизма (--parallel-workers 1)
+# Это гарантирует, что эмулятору ARM64 хватит оперативной памяти раннера
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
-    colcon build --symlink-install --cmake-args \
+    colcon build \
+    --parallel-workers 1 \
+    --symlink-install \
+    --cmake-args \
     -DROS_EDITION=ROS2 \
     -DCMAKE_BUILD_TYPE=Release"
 
-# 7. Автоматический сорсинг окружения при входе в контейнер
+# 6. Автоподключение пакетов в окружение
 RUN echo "source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc
 
 CMD ["/bin/bash"]
