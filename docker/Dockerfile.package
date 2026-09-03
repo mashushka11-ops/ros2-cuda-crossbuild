@@ -40,6 +40,15 @@ RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
 WORKDIR /workspace/ros2_ws/src/livox_ros_driver2
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && ./build.sh humble"
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace/ros2_ws
+RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
+    source install/setup.bash && \
+    colcon build --packages-select fast_lio --cmake-args -DCMAKE_BUILD_TYPE=Release --parallel-workers 1"
+
 # 5. Сборка пакета FAST_LIO_ROS2
 WORKDIR /workspace/ros2_ws
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
