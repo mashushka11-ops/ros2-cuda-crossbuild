@@ -9,7 +9,7 @@ ARG CUDA_ARCH="86"
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TORCH_CUDA_ARCH_LIST="${CUDA_ARCH}"
 
-# 1. Системные библиотеки PCL, Eigen и ROS2 пакеты
+# 1. Библиотеки PCL, Eigen и ROS2 пакеты
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpcl-dev \
     libeigen3-dev \
@@ -28,23 +28,24 @@ RUN git clone --depth 1 https://github.com/Livox-SDK/Livox-SDK2.git && \
     ldconfig && \
     cd /workspace && rm -rf Livox-SDK2
 
-# 3. Воркспейс ROS2
-WORKDIR /workspace/ros2_ws/src
+# 3. Клонируем драйвер Livox в отдельную папку и собираем родным скриптом
+WORKDIR /workspace
 RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
-    git clone --branch ${REPO_BRANCH} --depth 1 ${REPO_URL} || git clone --depth 1 ${REPO_URL}
+    cd livox_ros_driver2 && \
+    /bin/bash -c "source /opt/ros/humble/setup.bash && ./build.sh ros2"
 
-# 4. Сборка драйвера родным скриптом Livox (генерирует LIVOX_INTERFACES)
-WORKDIR /workspace/ros2_ws/src/livox_ros_driver2
-RUN /bin/bash -c "source /opt/ros/humble/setup.bash && ./build.sh ros2"
+# 4. Создаем воркспейс для FAST-LIO
+WORKDIR /workspace/ros2_ws/src
+RUN git clone --branch ${REPO_BRANCH} --depth 1 ${REPO_URL} || git clone --depth 1 ${REPO_URL}
 
-# 5. Сборка FAST-LIO через colcon поверх окружения драйвера
+# 5. Сборка FAST-LIO с подключением скомпилированного драйвера Livox
 WORKDIR /workspace/ros2_ws
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
-    source /workspace/ros2_ws/src/livox_ros_driver2/install/setup.bash && \
-    colcon build --packages-select fast_lio --cmake-args -DCMAKE_BUILD_TYPE=Release --parallel-workers 1"
+    source /workspace/livox_ros_driver2/build_ros2/install/setup.bash && \
+    colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --parallel-workers 1"
 
-# 6. Автосорсинг при входе в контейнер
-RUN echo "source /workspace/ros2_ws/src/livox_ros_driver2/install/setup.bash" >> /root/.bashrc && \
+# 6. Автосорсинг окружений при запуске контейнера
+RUN echo "source /workspace/livox_ros_driver2/build_ros2/install/setup.bash" >> /root/.bashrc && \
     echo "source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc
 
 CMD ["/bin/bash"]
