@@ -28,24 +28,25 @@ RUN git clone --depth 1 https://github.com/Livox-SDK/Livox-SDK2.git && \
     ldconfig && \
     cd /workspace && rm -rf Livox-SDK2
 
-# 3. Клонируем драйвер Livox в отдельную папку и собираем родным скриптом
+# 3. Клонируем и компилируем livox_ros_driver2
 WORKDIR /workspace
 RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
     cd livox_ros_driver2 && \
-    /bin/bash -c "source /opt/ros/humble/setup.bash && ./build.sh ros2"
+    cp package_ROS2.xml package.xml && \
+    /bin/bash -c "source /opt/ros/humble/setup.bash && colcon build --symlink-install --cmake-args -DROS_EDITION=ROS2"
 
 # 4. Создаем воркспейс для FAST-LIO
 WORKDIR /workspace/ros2_ws/src
 RUN git clone --branch ${REPO_BRANCH} --depth 1 ${REPO_URL} || git clone --depth 1 ${REPO_URL}
 
-# 5. Сборка FAST-LIO с подключением скомпилированного драйвера Livox
+# 5. Сборка FAST-LIO с подключением установленного драйвера
 WORKDIR /workspace/ros2_ws
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
-    source /workspace/livox_ros_driver2/build_ros2/install/setup.bash && \
+    source /workspace/livox_ros_driver2/install/setup.bash && \
     colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --parallel-workers 1"
 
-# 6. Автосорсинг окружений при запуске контейнера
-RUN echo "source /workspace/livox_ros_driver2/build_ros2/install/setup.bash" >> /root/.bashrc && \
+# 6. Автосорсинг окружений
+RUN echo "source /workspace/livox_ros_driver2/install/setup.bash" >> /root/.bashrc && \
     echo "source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc
 
 CMD ["/bin/bash"]
