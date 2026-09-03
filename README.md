@@ -16,11 +16,12 @@ CI/CD пайплайн сборки кросс-платформенных Docker
 
 ## Архитектура решения
 
-* **GitHub Actions Matrix:** Параллельная кросс-сборка под разные архитектуры через Docker Buildx и QEMU.
+* **GitHub Actions Matrix:** Параллельная кросс-сборка под целевые платформы через Docker Buildx и эмуляцию QEMU.
+* **Триггеры сборки:** Автоматический запуск при push в ветку `main`, создание версионных тегов (`v*.*.*`), а также ручной запуск через `workflow_dispatch`.
 * **Двухэтапная сборка:**
-  1. `Dockerfile.base.*` — системные CUDA/ROS2 зависимости, PCL, Eigen и компиляция драйвера `Livox-SDK2`.
-  2. `Dockerfile.package` — компиляция пакетов `livox_ros_driver2` (через скрипт `build.sh humble`) и ROS2-порта `FAST_LIO_ROS2` со встроенным деревом поиска `ikd-Tree`.
-* **Оптимизация сборки:** Ограничение параллелизма (`--parallel-workers 1`) для исключения Out-Of-Memory при эмуляции ARM64.
+  1. `Dockerfile.base.*` — системные зависимости ROS 2 Humble, CUDA Toolkit, PCL, Eigen и компиляция драйвера `Livox-SDK2`.
+  2. `Dockerfile.package` — компиляция пакетов `livox_ros_driver2` и ROS2-порта `FAST_LIO_ROS2` с поисковым деревом `ikd-Tree`.
+* **Оптимизация компиляции:** Ограничение параллелизма сборщика (`--parallel-workers 1`) для предотвращения Out-Of-Memory при сборке под QEMU ARM64.
 
 ---
 
@@ -49,3 +50,39 @@ docker run --rm -it --runtime nvidia \
 ```bash
 ros2 launch fast_lio mapping.launch.py
 ```
+
+---
+
+## Подтверждение наличия CUDA
+
+Проверка компилятора CUDA (`nvcc`) и доступности библиотек в собранных образах:
+
+```bash
+docker run --rm ghcr.io/mashushka11-ops/ros2-cuda-crossbuild/fastlio-x86:latest nvcc --version
+```
+
+---
+
+## Добавление нового ROS 2 пакета
+
+Система спроектирована по модульной двухэтапной схеме, что позволяет подключать новые ROS 2 пакеты без необходимости повторной компиляции базового CUDA/ROS2 окружения:
+
+1. **Базовый образ:** В качестве родительского слоя используется готовый базовый образ нужной архитектуры (`base-x86`, `base-jetson-agx-orin` или `base-jetson-orin-nano`).
+2. **Параметризация сборки:** В шаблон передаются аргументы репозитория и целевой микроархитектуры:
+   * `REPO_URL` — ссылка на репозиторий пакета.
+   * `BRANCH` — ветка для клонирования.
+   * `CUDA_ARCH` — флаг архитектуры (`sm_86` для Ampere x86, `sm_87` для Orin).
+3. **Шаблон сборки через colcon:**
+   ```dockerfile
+   ARG REPO_URL
+   ARG BRANCH=main
+   ARG CUDA_ARCH=sm_87
+
+   WORKDIR /workspace/ros2_ws/src
+   RUN git clone -b ${BRANCH} ${REPO_URL} my_new_package
+
+   WORKDIR /workspace/ros2_ws
+   RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
+       colcon build --cmake-args -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} --parallel-workers 1"
+   ```
+4. **Матрица CI/CD:** Для сборки нового пакета достаточно добавить новую запись в матрицу `matrix` файла `.github/workflows/build.yml`.
