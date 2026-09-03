@@ -27,18 +27,19 @@ CI/CD пайплайн сборки кросс-платформенных Docker
 ## Быстрый запуск
 
 ### 1. x86_64 с GPU NVIDIA
+
 ```bash
 docker pull ghcr.io/mashushka11-ops/ros2-cuda-crossbuild/fastlio-x86:latest
 
 docker run --rm -it --gpus all \
   ghcr.io/mashushka11-ops/ros2-cuda-crossbuild/fastlio-x86:latest
+
 2. NVIDIA Jetson (ARM64)
-Bash
 docker pull ghcr.io/mashushka11-ops/ros2-cuda-crossbuild/fastlio-jetson-agx-orin:latest
 
 docker run --rm -it --runtime nvidia \
   ghcr.io/mashushka11-ops/ros2-cuda-crossbuild/fastlio-jetson-agx-orin:latest
-Запуск узла внутри контейнера:
 
-Bash
+3. Запуск узла внутри контейнера
+
 ros2 launch fast_lio mapping.launch.py
