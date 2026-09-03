@@ -33,13 +33,19 @@ docker pull ghcr.io/mashushka11-ops/ros2-cuda-crossbuild/fastlio-x86:latest
 
 docker run --rm -it --gpus all \
   ghcr.io/mashushka11-ops/ros2-cuda-crossbuild/fastlio-x86:latest
+```
 
-2. NVIDIA Jetson (ARM64)
+### 2. NVIDIA Jetson (ARM64)
+
+```bash
 docker pull ghcr.io/mashushka11-ops/ros2-cuda-crossbuild/fastlio-jetson-agx-orin:latest
 
 docker run --rm -it --runtime nvidia \
   ghcr.io/mashushka11-ops/ros2-cuda-crossbuild/fastlio-jetson-agx-orin:latest
+```
 
-3. Запуск узла внутри контейнера
+### 3. Запуск узла внутри контейнера
 
+```bash
 ros2 launch fast_lio mapping.launch.py
+```
