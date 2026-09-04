@@ -24,18 +24,23 @@ WORKDIR /workspace/ros2_ws/src
 RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
     git clone -b ${BRANCH} --depth 1 ${REPO_URL} fast_lio
 
-# 3. Единая сборка рабочей области (colcon сам связывает зависимости)
+# 3. Сборка драйвера livox_ros_driver2
 WORKDIR /workspace/ros2_ws
-
 RUN source /opt/ros/humble/setup.bash && \
-    colcon build \
-    --cmake-args \
-      -DROS_EDITION=ROS2 \
-      -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
+    colcon build --packages-select livox_ros_driver2 \
+    --cmake-args -DROS_EDITION=ROS2 -DCMAKE_BUILD_TYPE=Release \
     --parallel-workers 1
 
-# 4. Настройка окружения
+# 4. Сборка пакета FAST-LIO с явным указанием пути к livox
+RUN source /opt/ros/humble/setup.bash && \
+    colcon build --packages-select fast_lio \
+    --cmake-args \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
+      -DCMAKE_PREFIX_PATH="/workspace/ros2_ws/install/livox_ros_driver2;/opt/ros/humble" \
+    --parallel-workers 1
+
+# 5. Настройка окружения
 RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc && \
     echo "source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc
 
