@@ -9,16 +9,13 @@ ARG CUDA_ARCH="86"
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TORCH_CUDA_ARCH_LIST="${CUDA_ARCH}"
 
-# 1. Системные зависимости ROS2, PCL и генераторы интерфейсов
+# 1. Установка недостающих заголовков Python и стандартных ROS2 пакетов
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpcl-dev \
-    libeigen3-dev \
+    python3-dev \
+    ros-humble-common-interfaces \
+    ros-humble-tf2-ros \
     ros-humble-pcl-conversions \
-    ros-humble-pcl-msgs \
-    ros-humble-perception-pcl \
-    ros-humble-diagnostic-updater \
-    ros-humble-rosidl-default-generators \
-    ros-humble-rosidl-default-runtime \
+    ros-humble-pcl-ros \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Сборка и системная установка Livox-SDK2
