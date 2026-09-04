@@ -42,21 +42,13 @@ RUN if [ ! -f /usr/local/lib/liblivox_lidar_sdk_shared.so ]; then \
       rm -rf /tmp/Livox-SDK2; \
     fi && ldconfig
 
-# 3. Сборка и установка livox_ros_driver2 прямо в дерево ROS2 (/opt/ros/humble)
+# 3. Сборка livox_ros_driver2 через официальный build.sh humble и экспорт в ROS2
 WORKDIR /workspace/livox_ws/src
 RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
     cd livox_ros_driver2 && \
-    cp package_ROS2.xml package.xml && \
     source /opt/ros/humble/setup.bash && \
-    colcon build \
-      --install-base /opt/ros/humble \
-      --merge-install \
-      --cmake-args \
-        -DROS_EDITION=ROS2 \
-        -DHUMBLE_ROS=HUMBLE \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_LIBRARY_PATH="/usr/local/lib" \
-      --parallel-workers 1 && \
+    ./build.sh humble && \
+    cp -r /workspace/livox_ws/src/livox_ros_driver2/install/* /opt/ros/humble/ && \
     rm -rf /workspace/livox_ws
 
 # 4. Клонирование и сборка FAST_LIO под ROS2 (с подмодулем ikd-Tree)
