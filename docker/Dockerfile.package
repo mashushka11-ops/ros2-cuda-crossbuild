@@ -3,8 +3,6 @@ FROM ${BASE_IMAGE}
 
 SHELL ["/bin/bash", "-c"]
 
-ARG REPO_URL=https://github.com/Ericsii/FAST_LIO_ROS2.git
-ARG BRANCH=main
 ARG CUDA_ARCH=87
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -24,7 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-humble-pcl-ros \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Гарантия наличия Livox-SDK2 в системных путях
+# 2. Проверка наличия Livox-SDK2
 RUN if [ ! -f /usr/local/lib/liblivox_lidar_sdk_shared.so ]; then \
       find /usr/local/lib64 -name "*livox*" -exec cp -r {} /usr/local/lib/ \; 2>/dev/null || true; \
     fi && \
@@ -36,16 +34,16 @@ RUN if [ ! -f /usr/local/lib/liblivox_lidar_sdk_shared.so ]; then \
       rm -rf /tmp/Livox-SDK2; \
     fi && ldconfig
 
-# 3. Сборка драйвера livox_ros_driver2 в отдельном воркспейсе
+# 3. Сборка драйвера livox_ros_driver2
 WORKDIR /workspace/livox_ws/src
 RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
     cd livox_ros_driver2 && \
     source /opt/ros/humble/setup.bash && \
     ./build.sh humble
 
-# 4. Клонирование и сборка FAST_LIO_ROS2
+# 4. Клонирование и сборка FAST_LIO под ROS2
 WORKDIR /workspace/ros2_ws/src
-RUN git clone -b ${BRANCH} --depth 1 ${REPO_URL} fast_lio
+RUN git clone --depth 1 https://github.com/Ericsii/FAST_LIO_ROS2.git fast_lio
 
 WORKDIR /workspace/ros2_ws
 RUN source /opt/ros/humble/setup.bash && \
