@@ -8,8 +8,9 @@ ARG BRANCH=main
 ARG CUDA_ARCH=87
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV ROS_DISTRO=humble
 
-# 1. Системные библиотеки, сборщики интерфейсов и гарантия наличия Livox-SDK2
+# 1. Системные библиотеки, утилиты и генераторы интерфейсов
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     pkg-config \
@@ -23,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-humble-pcl-ros \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Проверка и линковка Livox-SDK2 в /usr/local/lib
+# 2. Гарантия наличия Livox-SDK2 в системных путях библиотеки
 RUN if [ ! -f /usr/local/lib/liblivox_lidar_sdk_shared.so ]; then \
       find /usr/local/lib64 -name "*livox*" -exec cp -r {} /usr/local/lib/ \; 2>/dev/null || true; \
     fi && \
@@ -39,34 +40,27 @@ RUN if [ ! -f /usr/local/lib/liblivox_lidar_sdk_shared.so ]; then \
 WORKDIR /workspace/ros2_ws/src
 
 RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
-    git clone -b ${BRANCH} --depth 1 ${REPO_URL} fast_lio && \
-    cd livox_ros_driver2 && \
-    cp package_ROS2.xml package.xml
+    git clone -b ${BRANCH} --depth 1 ${REPO_URL} fast_lio
 
-# 4. Сборка livox_ros_driver2 с правильным флагом HUMBLE_ROS2
-WORKDIR /workspace/ros2_ws
-
+# 4. Сборка livox_ros_driver2 через скрипт build.sh humble
+WORKDIR /workspace/ros2_ws/src/livox_ros_driver2
 RUN source /opt/ros/humble/setup.bash && \
-    colcon build --packages-select livox_ros_driver2 \
-      --cmake-args \
-        -DROS_EDITION=ROS2 \
-        -DHUMBLE_ROS2=ON \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_LIBRARY_PATH="/usr/local/lib" \
-      --parallel-workers 1
+    ./build.sh humble
 
 # 5. Сборка FAST-LIO
+WORKDIR /workspace/ros2_ws
 RUN source /opt/ros/humble/setup.bash && \
-    source /workspace/ros2_ws/install/setup.bash && \
+    source /workspace/ros2_ws/src/livox_ros_driver2/install/setup.bash && \
     colcon build --packages-select fast_lio \
       --cmake-args \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
-        -DCMAKE_PREFIX_PATH="/workspace/ros2_ws/install/livox_ros_driver2;/usr/local;/opt/ros/humble" \
+        -DCMAKE_PREFIX_PATH="/workspace/ros2_ws/src/livox_ros_driver2/install/livox_ros_driver2;/usr/local;/opt/ros/humble" \
       --parallel-workers 1
 
-# 6. Настройка окружения
+# 6. Настройка окружения контейнера
 RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc && \
+    echo "source /workspace/ros2_ws/src/livox_ros_driver2/install/setup.bash" >> /root/.bashrc && \
     echo "source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc
 
 CMD ["/bin/bash"]
