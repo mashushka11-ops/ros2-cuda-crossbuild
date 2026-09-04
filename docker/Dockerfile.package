@@ -42,34 +42,25 @@ RUN if [ ! -f /usr/local/lib/liblivox_lidar_sdk_shared.so ]; then \
       rm -rf /tmp/Livox-SDK2; \
     fi && ldconfig
 
-# 3. Клонирование пакетов и подготовка package.xml под ROS2
+# 3. Сборка интерфейсов и драйвера livox_ros_driver2 через родной build.sh
 WORKDIR /workspace/ros2_ws/src
 RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
     git clone --recurse-submodules --depth 1 https://github.com/Ericsii/FAST_LIO_ROS2.git fast_lio && \
     cd livox_ros_driver2 && \
-    cp package_ROS2.xml package.xml
+    source /opt/ros/humble/setup.bash && \
+    ./build.sh humble && \
+    cp -r /workspace/ros2_ws/install/* /opt/ros/humble/
 
-# 4. Этап 1: генерация интерфейсов и сборка livox_ros_driver2 через colcon
+# 4. Сборка FAST-LIO
 WORKDIR /workspace/ros2_ws
 RUN source /opt/ros/humble/setup.bash && \
-    colcon build --packages-select livox_ros_driver2 \
-      --cmake-args \
-        -DROS_EDITION=ROS2 \
-        -DHUMBLE_ROS=humble \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_LIBRARY_PATH="/usr/local/lib" \
-      --parallel-workers 1
-
-# 5. Этап 2: сборка fast_lio с подключенным окружением собранного драйвера
-RUN source /opt/ros/humble/setup.bash && \
-    source /workspace/ros2_ws/install/setup.bash && \
     colcon build --packages-select fast_lio \
       --cmake-args \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       --parallel-workers 1
 
-# 6. Проброс окружения в контейнер
+# 5. Проброс окружения в контейнер
 RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc && \
     echo "source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc
 
