@@ -42,20 +42,19 @@ RUN if [ ! -f /usr/local/lib/liblivox_lidar_sdk_shared.so ]; then \
       rm -rf /tmp/Livox-SDK2; \
     fi && ldconfig
 
-# 3. Клонирование обоих пакетов в единый воркспейс
+# 3. Клонирование и явная замена CMakeLists и package.xml под ROS2
 WORKDIR /workspace/ros2_ws/src
 RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
     git clone --recurse-submodules --depth 1 https://github.com/Ericsii/FAST_LIO_ROS2.git fast_lio && \
     cd livox_ros_driver2 && \
-    cp package_ROS2.xml package.xml
+    cp package_ROS2.xml package.xml && \
+    cp CMakeLists_ROS2.txt CMakeLists.txt
 
-# 4. Сборка всего воркспейса (colcon автоматически разрешит зависимости)
+# 4. Сборка всего воркспейса
 WORKDIR /workspace/ros2_ws
 RUN source /opt/ros/humble/setup.bash && \
     colcon build \
       --cmake-args \
-        -DROS_EDITION=ROS2 \
-        -DHUMBLE_ROS=HUMBLE \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
       --parallel-workers 1
