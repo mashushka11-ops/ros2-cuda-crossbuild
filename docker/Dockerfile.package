@@ -1,15 +1,15 @@
-# Базовый образ с ROS2 и CUDA
-ARG BASE_IMAGE=ros2-cuda-base:x86
+ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 
-ARG REPO_URL="https://github.com/Ericsii/FAST_LIO_ROS2.git"
-ARG REPO_BRANCH="main"
-ARG CUDA_ARCH="86"
+SHELL ["/bin/bash", "-c"]
+
+ARG REPO_URL=https://github.com/Ericsii/FAST_LIO_ROS2.git
+ARG BRANCH=main
+ARG CUDA_ARCH=87
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV TORCH_CUDA_ARCH_LIST="${CUDA_ARCH}"
 
-# 1. Установка недостающих заголовков Python и стандартных ROS2 пакетов
+# 1. Установка заголовков Python и стандартных пакетов ROS2
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     ros-humble-common-interfaces \
@@ -18,44 +18,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-humble-pcl-ros \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Сборка и системная установка Livox-SDK2
-WORKDIR /workspace
-RUN git clone --depth 1 https://github.com/Livox-SDK/Livox-SDK2.git && \
-    cd Livox-SDK2 && \
-    mkdir build && cd build && \
-    cmake .. && make -j2 && make install && \
-    ldconfig && \
-    cd /workspace && rm -rf Livox-SDK2
-
-# 3. Подготовка рабочего пространства и скачивание зависимостей с сабмодулями
+# 2. Подготовка рабочей области и исходников
 WORKDIR /workspace/ros2_ws/src
 
 RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
-    git clone --recurse-submodules --depth 1 https://github.com/Ericsii/FAST_LIO_ROS2.git
+    git clone -b ${BRANCH} --depth 1 ${REPO_URL} fast_lio
 
-# 4. Сборка драйвера родным скриптом под Humble
-WORKDIR /workspace/ros2_ws/src/livox_ros_driver2
-RUN /bin/bash -c "source /opt/ros/humble/setup.bash && ./build.sh humble"
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3-dev \
-    ros-humble-nav-msgs \
-    ros-humble-sensor-msgs \
-    ros-humble-geometry-msgs \
-    && rm -rf /var/lib/apt/lists/*
-
+# 3. Единая сборка рабочей области (colcon сам связывает зависимости)
 WORKDIR /workspace/ros2_ws
-RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
-    source install/setup.bash && \
-    colcon build --packages-select fast_lio --cmake-args -DCMAKE_BUILD_TYPE=Release --parallel-workers 1"
 
-# 5. Сборка пакета FAST_LIO_ROS2
-WORKDIR /workspace/ros2_ws
-RUN /bin/bash -c "source /opt/ros/humble/setup.bash && \
-    source install/setup.bash && \
-    colcon build --packages-select fast_lio --cmake-args -DCMAKE_BUILD_TYPE=Release --parallel-workers 1"
+RUN source /opt/ros/humble/setup.bash && \
+    colcon build \
+    --cmake-args \
+      -DROS_EDITION=ROS2 \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
+    --parallel-workers 1
 
-# 6. Автосорсинг при запуске контейнера
-RUN echo "source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc
+# 4. Настройка окружения
+RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc && \
+    echo "source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc
 
 CMD ["/bin/bash"]
