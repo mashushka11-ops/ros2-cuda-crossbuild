@@ -48,7 +48,7 @@ RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
     cd livox_ros_driver2 && \
     source /opt/ros/humble/setup.bash && \
     ./build.sh humble && \
-    cp -r /workspace/livox_ws/src/livox_ros_driver2/install/* /opt/ros/humble/ && \
+    cp -r /workspace/livox_ws/install/livox_ros_driver2/* /opt/ros/humble/ && \
     rm -rf /workspace/livox_ws
 
 # 4. Клонирование и сборка FAST_LIO под ROS2 (с подмодулем ikd-Tree)
