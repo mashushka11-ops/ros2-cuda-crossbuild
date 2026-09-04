@@ -8,8 +8,12 @@ ARG CUDA_ARCH=87
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ROS_DISTRO=humble
 
-# 1. Системные библиотеки, сборщики и зависимости интерфейсов
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# 1. Обновление GPG-ключа ROS2, системные библиотеки и сборщики интерфейсов
+RUN apt-get update || true && apt-get install -y --no-install-recommends curl ca-certificates gnupg \
+    && curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" > /etc/apt/sources.list.d/ros2.list \
+    && ([ -f /sbin/ldconfig.real ] && dpkg-divert --local --rename --add /sbin/ldconfig.real && ln -s /bin/true /sbin/ldconfig.real || true) \
+    && apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     pkg-config \
     libpcap-dev \
@@ -20,6 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-humble-tf2-ros \
     ros-humble-pcl-conversions \
     ros-humble-pcl-ros \
+    && ([ -L /sbin/ldconfig.real ] && rm /sbin/ldconfig.real && dpkg-divert --local --rename --remove /sbin/ldconfig.real && /sbin/ldconfig || true) \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Проверка наличия Livox-SDK2
