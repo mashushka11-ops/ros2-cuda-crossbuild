@@ -60,7 +60,7 @@ RUN source /opt/ros/humble/setup.bash && \
       --cmake-args \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
-        -DCMAKE_PREFIX_PATH="/workspace/livox_ws/install;/usr/local;/opt/ros/humble" \
+        -DCMAKE_PREFIX_PATH="/workspace/livox_ws/install/livox_ros_driver2;/usr/local;/opt/ros/humble" \
       --parallel-workers 1
 
 # 5. Проброс окружения в контейнер
