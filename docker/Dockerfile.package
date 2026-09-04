@@ -43,14 +43,14 @@ RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
     cd livox_ros_driver2 && \
     cp package_ROS2.xml package.xml
 
-# 4. Сборка livox_ros_driver2 с поддержкой Humble
+# 4. Сборка livox_ros_driver2 с флагом HUMBLE в верхнем регистре
 WORKDIR /workspace/ros2_ws
 
 RUN source /opt/ros/humble/setup.bash && \
     colcon build --packages-select livox_ros_driver2 \
       --cmake-args \
         -DROS_EDITION=ROS2 \
-        -DHUMBLE_ROS=humble \
+        -DHUMBLE_ROS=HUMBLE \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_LIBRARY_PATH="/usr/local/lib" \
       --parallel-workers 1
