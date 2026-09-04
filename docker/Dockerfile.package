@@ -9,7 +9,7 @@ ARG CUDA_ARCH=87
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# 1. Системные зависимости и генераторы сообщений ROS2
+# 1. Зависимости сборки, сетевые библиотеки и генераторы интерфейсов
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     pkg-config \
@@ -24,15 +24,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && ldconfig \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Подготовка исходников и запуск скрипта адаптации Livox под ROS2
+# 2. Подготовка исходников и переключение livox_ros_driver2 на ROS2
 WORKDIR /workspace/ros2_ws/src
 
 RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
     git clone -b ${BRANCH} --depth 1 ${REPO_URL} fast_lio && \
     cd livox_ros_driver2 && \
-    ./build.sh ros2
+    cp package_ROS2.xml package.xml
 
-# 3. Сборка драйвера livox_ros_driver2 с явным указанием путей к Livox-SDK2
+# 3. Сборка livox_ros_driver2 с явной привязкой к SDK
 WORKDIR /workspace/ros2_ws
 
 RUN source /opt/ros/humble/setup.bash && \
@@ -41,10 +41,12 @@ RUN source /opt/ros/humble/setup.bash && \
         -DROS_EDITION=ROS2 \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_PREFIX_PATH="/usr/local;/opt/ros/humble" \
+        -DCMAKE_INCLUDE_PATH="/usr/local/include;/usr/local/include/livox_lidar_sdk" \
         -DCMAKE_LIBRARY_PATH="/usr/local/lib" \
+      --event-handlers console_direct+ \
       --parallel-workers 1
 
-# 4. Сборка пакета FAST-LIO
+# 4. Сборка FAST-LIO
 RUN source /opt/ros/humble/setup.bash && \
     source /workspace/ros2_ws/install/setup.bash && \
     colcon build --packages-select fast_lio \
@@ -52,9 +54,10 @@ RUN source /opt/ros/humble/setup.bash && \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
         -DCMAKE_PREFIX_PATH="/workspace/ros2_ws/install/livox_ros_driver2;/usr/local;/opt/ros/humble" \
+      --event-handlers console_direct+ \
       --parallel-workers 1
 
-# 5. Настройка окружения контейнера
+# 5. Настройка окружения
 RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc && \
     echo "source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc
 
