@@ -9,7 +9,7 @@ ARG CUDA_ARCH=87
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# 1. Зависимости сборки, сетевые библиотеки и генераторы интерфейсов
+# 1. Системные библиотеки, сборщики интерфейсов и гарантия наличия Livox-SDK2
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     pkg-config \
@@ -21,10 +21,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-humble-tf2-ros \
     ros-humble-pcl-conversions \
     ros-humble-pcl-ros \
-    && ldconfig \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Подготовка исходников и переключение livox_ros_driver2 на ROS2
+# 2. Проверка и линковка Livox-SDK2 в /usr/local/lib
+RUN if [ ! -f /usr/local/lib/liblivox_lidar_sdk_shared.so ]; then \
+      find /usr/local/lib64 -name "*livox*" -exec cp -r {} /usr/local/lib/ \; 2>/dev/null || true; \
+    fi && \
+    if [ ! -f /usr/local/lib/liblivox_lidar_sdk_shared.so ]; then \
+      git clone --depth 1 https://github.com/Livox-SDK/Livox-SDK2.git /tmp/Livox-SDK2 && \
+      cd /tmp/Livox-SDK2 && mkdir build && cd build && \
+      cmake -DCMAKE_BUILD_TYPE=Release .. && make -j$(nproc) && make install && \
+      cp -r /usr/local/lib64/* /usr/local/lib/ 2>/dev/null || true && \
+      rm -rf /tmp/Livox-SDK2; \
+    fi && ldconfig
+
+# 3. Подготовка рабочей области и исходников
 WORKDIR /workspace/ros2_ws/src
 
 RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
@@ -32,21 +43,19 @@ RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
     cd livox_ros_driver2 && \
     cp package_ROS2.xml package.xml
 
-# 3. Сборка livox_ros_driver2 с явной привязкой к SDK
+# 4. Сборка livox_ros_driver2 с поддержкой Humble
 WORKDIR /workspace/ros2_ws
 
 RUN source /opt/ros/humble/setup.bash && \
     colcon build --packages-select livox_ros_driver2 \
       --cmake-args \
         -DROS_EDITION=ROS2 \
+        -DHUMBLE_ROS=humble \
         -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_PREFIX_PATH="/usr/local;/opt/ros/humble" \
-        -DCMAKE_INCLUDE_PATH="/usr/local/include;/usr/local/include/livox_lidar_sdk" \
         -DCMAKE_LIBRARY_PATH="/usr/local/lib" \
-      --event-handlers console_direct+ \
       --parallel-workers 1
 
-# 4. Сборка FAST-LIO
+# 5. Сборка FAST-LIO
 RUN source /opt/ros/humble/setup.bash && \
     source /workspace/ros2_ws/install/setup.bash && \
     colcon build --packages-select fast_lio \
@@ -54,10 +63,9 @@ RUN source /opt/ros/humble/setup.bash && \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
         -DCMAKE_PREFIX_PATH="/workspace/ros2_ws/install/livox_ros_driver2;/usr/local;/opt/ros/humble" \
-      --event-handlers console_direct+ \
       --parallel-workers 1
 
-# 5. Настройка окружения
+# 6. Настройка окружения
 RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc && \
     echo "source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc
 
