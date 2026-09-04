@@ -42,6 +42,9 @@ RUN /bin/bash -c "source /opt/ros/humble/setup.bash && ./build.sh humble"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
+    ros-humble-nav-msgs \
+    ros-humble-sensor-msgs \
+    ros-humble-geometry-msgs \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace/ros2_ws
