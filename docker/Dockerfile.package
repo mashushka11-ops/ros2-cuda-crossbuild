@@ -37,7 +37,7 @@ RUN apt-get update || true && apt-get install -y --no-install-recommends curl ca
     && pip3 install --no-cache-dir ament-package || true \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Установка Livox-SDK2
+# 2. Установка Livox-SDK2 (без прямого вызова ldconfig, роняющего QEMU)
 RUN if [ ! -f /usr/local/lib/liblivox_lidar_sdk_shared.so ]; then \
       find /usr/local/lib64 -name "*livox*" -exec cp -r {} /usr/local/lib/ \; 2>/dev/null || true; \
     fi && \
@@ -47,7 +47,7 @@ RUN if [ ! -f /usr/local/lib/liblivox_lidar_sdk_shared.so ]; then \
       cmake -DCMAKE_BUILD_TYPE=Release .. && make -j2 && make install && \
       cp -r /usr/local/lib64/* /usr/local/lib/ 2>/dev/null || true && \
       rm -rf /tmp/Livox-SDK2; \
-    fi && ldconfig
+    fi
 
 # 3. Чистая сборка livox_ros_driver2 под ROS 2 без лишних тестов
 WORKDIR /workspace/livox_ws/src
