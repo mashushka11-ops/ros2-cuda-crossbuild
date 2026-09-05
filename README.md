@@ -1,5 +1,5 @@
 # ROS 2 Humble + CUDA Cross-Platform Build
-
+[![CI/CD Build](https://github.com/mashushka11-ops/ros2-cuda-crossbuild/actions/workflows/build.yml/badge.svg)](https://github.com/mashushka11-ops/ros2-cuda-crossbuild/actions/workflows/build.yml)
 CI/CD пайплайн автоматической сборки кросс-платформенных Docker-контейнеров для алгоритма одометрии FAST-LIO и драйвера Livox-SDK2 / livox_ros_driver2 под ROS 2 Humble с поддержкой NVIDIA CUDA.
 
 Разработано в рамках технического задания компании **«Априорные Решения Машин»** ([armmeh.ru](https://armmeh.ru/)).
