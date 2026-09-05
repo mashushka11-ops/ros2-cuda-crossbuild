@@ -54,7 +54,7 @@ RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
     source /opt/ros/humble/setup.bash && \
     ./build.sh humble
 
-# 4. Сборка FAST-LIO через прямой source корня install
+# 4. Сборка FAST-LIO (не передаем CMAKE_PREFIX_PATH вручную, чтобы не ломать пути ament)
 WORKDIR /workspace/ros2_ws/src
 RUN git clone --recurse-submodules --depth 1 https://github.com/Ericsii/FAST_LIO_ROS2.git fast_lio
 
@@ -65,7 +65,6 @@ RUN source /opt/ros/humble/setup.bash && \
       --cmake-args \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
-        -DCMAKE_PREFIX_PATH="/workspace/livox_ws/install;/opt/ros/humble" \
       --parallel-workers 1
 
 # 5. Проброс переменных окружения
