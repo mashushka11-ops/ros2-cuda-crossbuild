@@ -23,6 +23,7 @@ RUN apt-get update || true && apt-get install -y --no-install-recommends curl ca
     libpcap-dev \
     ros-humble-ament-cmake \
     ros-humble-ament-cmake-auto \
+    ros-humble-ament-lint-auto \
     ros-humble-rmw-cyclonedds-cpp \
     ros-humble-rmw-fastrtps-cpp \
     ros-humble-rosidl-default-generators \
@@ -48,7 +49,7 @@ RUN if [ ! -f /usr/local/lib/liblivox_lidar_sdk_shared.so ]; then \
       rm -rf /tmp/Livox-SDK2; \
     fi && ldconfig
 
-# 3. Чистая и контролируемая сборка livox_ros_driver2 под ROS 2
+# 3. Чистая сборка livox_ros_driver2 под ROS 2 без лишних тестов
 WORKDIR /workspace/livox_ws/src
 RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
     cd livox_ros_driver2 && \
@@ -62,6 +63,7 @@ RUN source /opt/ros/humble/setup.bash && \
         -DROS_EDITION=ROS2 \
         -DDISTRO_ROS=humble \
         -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_TESTING=OFF \
       --parallel-workers 1 && \
     test -f /workspace/livox_ws/install/livox_ros_driver2/share/livox_ros_driver2/cmake/livox_ros_driver2Config.cmake
 
@@ -76,6 +78,7 @@ RUN source /opt/ros/humble/setup.bash && \
       --cmake-args \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
+        -DBUILD_TESTING=OFF \
       --parallel-workers 1
 
 # 5. Проброс переменных окружения
