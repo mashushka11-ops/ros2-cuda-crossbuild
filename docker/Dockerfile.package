@@ -9,7 +9,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV ROS_DISTRO=humble
 ENV RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 
-# 1. Обновление GPG-ключа ROS2, системные библиотеки, middleware, python-пакеты ament
+# 1. Системные зависимости, ключи ROS2 и ament
 RUN apt-get update || true && apt-get install -y --no-install-recommends curl ca-certificates gnupg \
     && curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" > /etc/apt/sources.list.d/ros2.list \
@@ -33,7 +33,7 @@ RUN apt-get update || true && apt-get install -y --no-install-recommends curl ca
     && pip3 install --no-cache-dir ament-package || true \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Проверка и установка Livox-SDK2
+# 2. Установка Livox-SDK2
 RUN if [ ! -f /usr/local/lib/liblivox_lidar_sdk_shared.so ]; then \
       find /usr/local/lib64 -name "*livox*" -exec cp -r {} /usr/local/lib/ \; 2>/dev/null || true; \
     fi && \
@@ -45,29 +45,29 @@ RUN if [ ! -f /usr/local/lib/liblivox_lidar_sdk_shared.so ]; then \
       rm -rf /tmp/Livox-SDK2; \
     fi && ldconfig
 
-# 3. Сборка драйвера livox_ros_driver2
-WORKDIR /workspace/ros2_ws/src
+# 3. Сборка драйвера Livox в собственном воркспейсе
+WORKDIR /workspace/livox_ws/src
 RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
-    git clone --recurse-submodules --depth 1 https://github.com/Ericsii/FAST_LIO_ROS2.git fast_lio && \
     cd livox_ros_driver2 && \
     source /opt/ros/humble/setup.bash && \
     ./build.sh humble
 
-# 4. Сборка FAST-LIO с прямым указанием пути livox_ros_driver2_DIR
+# 4. Сборка FAST-LIO
+WORKDIR /workspace/ros2_ws/src
+RUN git clone --recurse-submodules --depth 1 https://github.com/Ericsii/FAST_LIO_ROS2.git fast_lio
+
 WORKDIR /workspace/ros2_ws
 RUN source /opt/ros/humble/setup.bash && \
-    LIVOX_DIR=$(find /workspace/ros2_ws -name "livox_ros_driver2Config.cmake" -exec dirname {} \; | head -n 1) && \
-    echo "Found livox cmake dir: ${LIVOX_DIR}" && \
+    source /workspace/livox_ws/install/setup.bash && \
     colcon build --packages-select fast_lio \
       --cmake-args \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
-        -Dlivox_ros_driver2_DIR="${LIVOX_DIR}" \
-        -DCMAKE_PREFIX_PATH="/workspace/ros2_ws/install;/opt/ros/humble" \
       --parallel-workers 1
 
-# 5. Проброс окружения в контейнер
+# 5. Проброс переменных окружения
 RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc && \
-    echo "source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc 2>/dev/null || true
+    echo "source /workspace/livox_ws/install/setup.bash" >> /root/.bashrc && \
+    echo "source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc
 
 CMD ["/bin/bash"]
