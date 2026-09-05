@@ -8,6 +8,7 @@ ARG CUDA_ARCH=87
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ROS_DISTRO=humble
 ENV RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+ENV MAKEFLAGS="-j2"
 
 # 1. Системные зависимости, ament_cmake и интерфейсы
 RUN apt-get update || true && apt-get install -y --no-install-recommends curl ca-certificates gnupg \
@@ -41,36 +42,35 @@ RUN if [ ! -f /usr/local/lib/liblivox_lidar_sdk_shared.so ]; then \
     if [ ! -f /usr/local/lib/liblivox_lidar_sdk_shared.so ]; then \
       git clone --depth 1 https://github.com/Livox-SDK/Livox-SDK2.git /tmp/Livox-SDK2 && \
       cd /tmp/Livox-SDK2 && mkdir build && cd build && \
-      cmake -DCMAKE_BUILD_TYPE=Release .. && make -j$(nproc) && make install && \
+      cmake -DCMAKE_BUILD_TYPE=Release .. && make -j2 && make install && \
       cp -r /usr/local/lib64/* /usr/local/lib/ 2>/dev/null || true && \
       rm -rf /tmp/Livox-SDK2; \
     fi && ldconfig
 
-# 3. Сборка драйвера Livox через родной скрипт
+# 3. Сборка драйвера Livox через родной скрипт в чистом livox_ws
 WORKDIR /workspace/livox_ws/src
 RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
     cd livox_ros_driver2 && \
     source /opt/ros/humble/setup.bash && \
     ./build.sh humble
 
-# 4. Сборка FAST-LIO через оверлей окружения Livox
+# 4. Сборка FAST-LIO через прямой source корня install
 WORKDIR /workspace/ros2_ws/src
 RUN git clone --recurse-submodules --depth 1 https://github.com/Ericsii/FAST_LIO_ROS2.git fast_lio
 
 WORKDIR /workspace/ros2_ws
-RUN SETUP_LIVOX=$(find /workspace/livox_ws -name "local_setup.bash" | head -n 1) && \
-    source /opt/ros/humble/setup.bash && \
-    source "${SETUP_LIVOX}" && \
+RUN source /opt/ros/humble/setup.bash && \
+    source /workspace/livox_ws/install/setup.bash && \
     colcon build --packages-select fast_lio \
       --cmake-args \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
+        -DCMAKE_PREFIX_PATH="/workspace/livox_ws/install;/opt/ros/humble" \
       --parallel-workers 1
 
-# 5. Проброс окружения в контейнер
-RUN SETUP_LIVOX=$(find /workspace/livox_ws -name "local_setup.bash" | head -n 1) && \
-    echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc && \
-    echo "source ${SETUP_LIVOX}" >> /root/.bashrc && \
+# 5. Проброс переменных окружения
+RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc && \
+    echo "source /workspace/livox_ws/install/setup.bash" >> /root/.bashrc && \
     echo "source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc
 
 CMD ["/bin/bash"]
