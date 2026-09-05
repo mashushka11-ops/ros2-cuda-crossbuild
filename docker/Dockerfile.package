@@ -22,6 +22,7 @@ RUN apt-get update || true && apt-get install -y --no-install-recommends curl ca
     pkg-config \
     libpcap-dev \
     ros-humble-ament-cmake \
+    ros-humble-ament-cmake-auto \
     ros-humble-rmw-cyclonedds-cpp \
     ros-humble-rmw-fastrtps-cpp \
     ros-humble-rosidl-default-generators \
@@ -47,12 +48,22 @@ RUN if [ ! -f /usr/local/lib/liblivox_lidar_sdk_shared.so ]; then \
       rm -rf /tmp/Livox-SDK2; \
     fi && ldconfig
 
-# 3. Сборка драйвера Livox через родной скрипт
+# 3. Чистая и контролируемая сборка livox_ros_driver2 под ROS 2
 WORKDIR /workspace/livox_ws/src
 RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
     cd livox_ros_driver2 && \
-    source /opt/ros/humble/setup.bash && \
-    ./build.sh humble
+    cp -f package_ROS2.xml package.xml && \
+    [ -d launch_ROS2 ] && cp -rf launch_ROS2/ launch/ || true
+
+WORKDIR /workspace/livox_ws
+RUN source /opt/ros/humble/setup.bash && \
+    colcon build \
+      --cmake-args \
+        -DROS_EDITION=ROS2 \
+        -DDISTRO_ROS=humble \
+        -DCMAKE_BUILD_TYPE=Release \
+      --parallel-workers 1 && \
+    test -f /workspace/livox_ws/install/livox_ros_driver2/share/livox_ros_driver2/cmake/livox_ros_driver2Config.cmake
 
 # 4. Сборка FAST-LIO
 WORKDIR /workspace/ros2_ws/src
@@ -61,13 +72,10 @@ RUN git clone --recurse-submodules --depth 1 https://github.com/Ericsii/FAST_LIO
 WORKDIR /workspace/ros2_ws
 RUN source /opt/ros/humble/setup.bash && \
     source /workspace/livox_ws/install/setup.bash && \
-    export livox_ros_driver2_DIR=$(find /workspace/livox_ws/install -name "livox_ros_driver2Config.cmake" -exec dirname {} \; | head -n 1) && \
-    echo "Exported livox_ros_driver2_DIR: ${livox_ros_driver2_DIR}" && \
     colcon build --packages-select fast_lio \
       --cmake-args \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
-        -Dlivox_ros_driver2_DIR="${livox_ros_driver2_DIR}" \
       --parallel-workers 1
 
 # 5. Проброс переменных окружения
