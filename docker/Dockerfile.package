@@ -54,20 +54,20 @@ RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
     source /opt/ros/humble/setup.bash && \
     ./build.sh humble
 
-# 4. Сборка FAST-LIO с прямым указанием CMAKE_PREFIX_PATH на изолированный пакет драйвера
+# 4. Сборка FAST-LIO
 WORKDIR /workspace/ros2_ws/src
 RUN git clone --recurse-submodules --depth 1 https://github.com/Ericsii/FAST_LIO_ROS2.git fast_lio
 
 WORKDIR /workspace/ros2_ws
 RUN source /opt/ros/humble/setup.bash && \
     source /workspace/livox_ws/install/setup.bash && \
-    LIVOX_PKG_DIR=$(find /workspace/livox_ws/install -type d -name "livox_ros_driver2" | head -n 1) && \
-    echo "Using Livox package directory: ${LIVOX_PKG_DIR}" && \
+    export livox_ros_driver2_DIR=$(find /workspace/livox_ws/install -name "livox_ros_driver2Config.cmake" -exec dirname {} \; | head -n 1) && \
+    echo "Exported livox_ros_driver2_DIR: ${livox_ros_driver2_DIR}" && \
     colcon build --packages-select fast_lio \
       --cmake-args \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
-        -DCMAKE_PREFIX_PATH="${LIVOX_PKG_DIR};/workspace/livox_ws/install;/opt/ros/humble" \
+        -Dlivox_ros_driver2_DIR="${livox_ros_driver2_DIR}" \
       --parallel-workers 1
 
 # 5. Проброс переменных окружения
