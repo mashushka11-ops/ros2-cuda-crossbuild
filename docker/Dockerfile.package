@@ -53,18 +53,21 @@ RUN git clone --depth 1 https://github.com/Livox-SDK/livox_ros_driver2.git && \
     source /opt/ros/humble/setup.bash && \
     ./build.sh humble
 
-# 4. Сборка FAST-LIO
+# 4. Сборка FAST-LIO с прямым указанием пути livox_ros_driver2_DIR
 WORKDIR /workspace/ros2_ws
 RUN source /opt/ros/humble/setup.bash && \
-    source /workspace/ros2_ws/install/setup.bash && \
+    LIVOX_DIR=$(find /workspace/ros2_ws -name "livox_ros_driver2Config.cmake" -exec dirname {} \; | head -n 1) && \
+    echo "Found livox cmake dir: ${LIVOX_DIR}" && \
     colcon build --packages-select fast_lio \
       --cmake-args \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
+        -Dlivox_ros_driver2_DIR="${LIVOX_DIR}" \
+        -DCMAKE_PREFIX_PATH="/workspace/ros2_ws/install;/opt/ros/humble" \
       --parallel-workers 1
 
 # 5. Проброс окружения в контейнер
 RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc && \
-    echo "source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc
+    echo "source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc 2>/dev/null || true
 
 CMD ["/bin/bash"]
